@@ -35,6 +35,11 @@ const userSchema = new mongoose.Schema(
         }
       },
     },
+    college: {
+      type: String,
+      minlength: [3, 'College name must be at least 3 characters long'],
+      maxlength: [100, 'College name can not be longer than 100 characters'],
+    },
     age: {
       type: Number,
       min: 18,
@@ -45,11 +50,7 @@ const userSchema = new mongoose.Schema(
         values: ["male", "female", "other"],
         message: `{VALUE} is not a valid gender type`,
       },
-      // validate(value) {
-      //   if (!["male", "female", "others"].includes(value)) {
-      //     throw new Error("Gender data is not valid");
-      //   }
-      // },
+      
     },
     photoUrl: {
       type: String,
