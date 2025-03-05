@@ -1,5 +1,6 @@
 const express = require("express");
 const profileRouter = express.Router();
+const User = require("../models/user")
 
 const { userAuth } = require("../middlewares/auth");
 const { validateEditProfileData } = require("../utils/validation");
@@ -12,6 +13,23 @@ profileRouter.get("/profile/view", userAuth, async (req, res) => {
     res.status(400).send("ERROR : " + err.message);
   }
 });
+
+// Get any user by ID
+// profileRouter.get("/user/:userId", userAuth, async (req, res) => {
+//   try {
+//     const user = await User.findById(req.params.userId);
+
+//     if (!user) {
+//       return res.status(404).json({ error: "User not found" });
+//     }
+
+//     res.json(user);
+//   } catch (err) {
+//     res.status(400).json({ 
+//       error: "Invalid user ID format" 
+//     });
+//   }
+// });
 
 profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
   try {
