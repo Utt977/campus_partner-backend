@@ -15,21 +15,21 @@ profileRouter.get("/profile/view", userAuth, async (req, res) => {
 });
 
 // Get any user by ID
-// profileRouter.get("/user/:userId", userAuth, async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.userId);
+profileRouter.get("/profile/:userId", userAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
 
-//     if (!user) {
-//       return res.status(404).json({ error: "User not found" });
-//     }
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
-//     res.json(user);
-//   } catch (err) {
-//     res.status(400).json({ 
-//       error: "Invalid user ID format" 
-//     });
-//   }
-// });
+    res.json(user);
+  } catch (err) {
+    res.status(400).json({ 
+      error: "Invalid user ID format" 
+    });
+  }
+});
 
 profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
   try {

@@ -16,27 +16,31 @@ const initialiseSocket = (server) => {
     });
 
     io.on("connection", (socket) => {
-        // Track online status
         socket.on("userOnline", async (userId) => {
             await User.findByIdAndUpdate(userId, {
                 isOnline: true,
                 lastActive: new Date()
             });
-            socket.broadcast.emit("userStatusChanged", { userId, isOnline: true });
+            io.emit("userStatusChanged", { userId, isOnline: true });
         });
 
-        // Join chat room
+        socket.on("userOffline", async (userId) => {
+            await User.findByIdAndUpdate(userId, {
+                isOnline: false,
+                lastActive: new Date()
+            });
+            io.emit("userStatusChanged", { userId, isOnline: false });
+        });
+
         socket.on("joinChat", ({ userId, targetUserId }) => {
             const roomId = getSecretRoomId(userId, targetUserId);
             socket.join(roomId);
         });
 
-        // Handle messages
-        socket.on("sendMessage", async ({ userId, targetUserId, text }) => {
+        socket.on("sendMessage", async ({ userId, targetUserId, text, tempId }) => {
             try {
                 const roomId = getSecretRoomId(userId, targetUserId);
                 
-                // Check connection
                 const isConnected = await ConnectionRequestModel.exists({
                     $or: [
                         { fromUserId: userId, toUserId: targetUserId, status: "accepted" },
@@ -46,7 +50,6 @@ const initialiseSocket = (server) => {
 
                 if (!isConnected) return;
 
-                // Save message
                 const newMessage = {
                     senderId: userId,
                     text,
@@ -54,52 +57,51 @@ const initialiseSocket = (server) => {
                     timestamp: new Date()
                 };
 
-                await Chat.findOneAndUpdate(
+                const chat = await Chat.findOneAndUpdate(
                     { participants: { $all: [userId, targetUserId] } },
-                    { $push: { messages: newMessage } },
+                    { 
+                        $push: { messages: newMessage },
+                        $inc: { [`unreadCount.${targetUserId}`]: 1 }
+                    },
                     { upsert: true, new: true }
-                );
+                ).populate('participants', 'firstName lastName');
 
-                // Emit to room
                 io.to(roomId).emit("messageReceived", {
                     ...newMessage,
                     senderId: userId,
+                    tempId,
                     timestamp: new Date()
                 });
 
+                io.to(roomId).emit("unreadCountUpdate", {
+                    chatId: chat._id,
+                    unreadCount: chat.unreadCount
+                });
             } catch (err) {
                 console.error(err);
             }
         });
 
-        // Mark messages as seen
-        socket.on("markAsSeen", async ({ userId, targetUserId }) => {
-            try {
-                await Chat.updateMany(
-                    {
-                        participants: { $all: [userId, targetUserId] },
-                        "messages.seen": false
-                    },
-                    { $set: { "messages.$[elem].seen": true } },
-                    { arrayFilters: [{ "elem.senderId": targetUserId }] }
-                );
-
-                const roomId = getSecretRoomId(userId, targetUserId);
-                io.to(roomId).emit("messagesSeen", { userId });
-
-            } catch (err) {
-                console.error(err);
-            }
-        });
-        socket.on("typing", ({ userId, targetUserId, isTyping }) => {
+        socket.on("typing", ({ userId, firstName, targetUserId, isTyping }) => {
             const roomId = getSecretRoomId(userId, targetUserId);
-            socket.to(roomId).emit("typingStatus", isTyping);
-          });
+            io.to(roomId).emit("typingStatus", { userId, firstName, isTyping });
+        });
 
-        // Handle disconnect
         socket.on("disconnect", async () => {
-            // Get userId from your authentication system
-            // await User.findByIdAndUpdate(userId, { isOnline: false });
+            try {
+                if (socket.handshake.query.userId) {
+                    await User.findByIdAndUpdate(socket.handshake.query.userId, {
+                        isOnline: false,
+                        lastActive: new Date()
+                    });
+                    io.emit("userStatusChanged", {
+                        userId: socket.handshake.query.userId,
+                        isOnline: false
+                    });
+                }
+            } catch (err) {
+                console.error("Disconnect error:", err);
+            }
         });
     });
 
